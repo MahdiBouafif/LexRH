@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ARTICLE>
+<META>
+<META_COMMUN>
+<ID>LEGIARTI000006644104</ID>
+<ANCIEN_ID>SAAXXXXXXXX3X122D12AXXAB</ANCIEN_ID>
+<ORIGINE>LEGI</ORIGINE>
+<URL>article/LEGI/ARTI/00/00/06/64/41/LEGIARTI000006644104.xml</URL>
+<NATURE>Article</NATURE>
+</META_COMMUN>
+<META_SPEC>
+<META_ARTICLE>
+
+<NUM>D122-12</NUM>
+
+<ETAT>TRANSFERE</ETAT>
+
+<DATE_DEBUT>1989-11-28</DATE_DEBUT>
+<DATE_FIN>1991-08-02</DATE_FIN>
+
+
+
+<TYPE>AUTONOME</TYPE>
+</META_ARTICLE>
+</META_SPEC>
+</META>
+<CONTEXTE>
+<TEXTE autorite="" cid="LEGITEXT000006072050" date_publi="2999-01-01" date_signature="2999-01-01" ministere="" nature="CODE" nor="" num="" num_parution_jo="">
+<TITRE_TXT c_titre_court="Code du travail" debut="1973-01-03" fin="2999-01-01" id_txt="LEGITEXT000006072050">Code du travail</TITRE_TXT>
+<TM>
+<TITRE_TM debut="1973-08-04" fin="2999-01-01" id="LEGISCTA000006101374">Partie réglementaire ancienne - Décrets simples</TITRE_TM>
+<TM>
+<TITRE_TM debut="1973-11-23" fin="2999-01-01" id="LEGISCTA000006123849">Livre Ier : Conventions relatives au travail</TITRE_TM>
+<TM>
+<TITRE_TM debut="1974-09-29" fin="2008-05-01" id="LEGISCTA000018517002">Titre II : CONTRAT DE TRAVAIL</TITRE_TM>
+<TM>
+<TITRE_TM debut="1981-10-30" fin="2008-05-01" id="LEGISCTA000018517000">Chapitre II : REGLES PROPRES AU CONTRAT DE TRAVAIL</TITRE_TM>
+<TM>
+<TITRE_TM debut="1981-10-30" fin="2008-05-01" id="LEGISCTA000018516982">Section 2 : Résiliation du contrat de travail à durée indéterminée.</TITRE_TM>
+</TM>
+</TM>
+</TM>
+</TM>
+</TM>
+</TEXTE>
+</CONTEXTE>
+
+<VERSIONS>
+<VERSION etat="TRANSFERE">
+<LIEN_ART debut="1981-10-30" etat="TRANSFERE" fin="1989-11-28" id="LEGIARTI000006644103" num="D122-12" origine="LEGI"/>
+</VERSION>
+<VERSION etat="TRANSFERE">
+<LIEN_ART debut="1989-11-28" etat="TRANSFERE" fin="1991-08-02" id="LEGIARTI000006644104" num="D122-12" origine="LEGI"/>
+</VERSION>
+<VERSION etat="MODIFIE">
+<LIEN_ART debut="1991-08-02" etat="MODIFIE" fin="2005-01-01" id="LEGIARTI000006644105" num="D122-12" origine="LEGI"/>
+</VERSION>
+<VERSION etat="ABROGE">
+<LIEN_ART debut="2004-08-22" etat="ABROGE" fin="2008-05-01" id="LEGIARTI000018516945" num="D122-12" origine="LEGI"/>
+</VERSION>
+</VERSIONS>
+<NOTA>
+<CONTENU/>
+</NOTA>
+<BLOC_TEXTUEL>
+<CONTENU>
+<br/>   A peine de nullité, l'acte de notification de l'ordonnance informe l'employeur qu'il doit payer à l'institution le montant des allocations versées sauf à former opposition s'il a à faire valoir des moyens de défense.<br/>
+<br/>
+<br/>   Sous la même sanction, l'acte de notification :<br/>
+<br/>   Indique le délai dans lequel l'opposition doit être formée, le tribunal devant lequel elle doit être portée et les formes selon lesquelles elle doit être faite ;<br/>
+<br/>   Avertit l'employeur qu'il peut prendre connaissance au greffe des documents produits par l'institution, et qu'à défaut d'opposition dans le délai indiqué il ne peut plus contester la créance et peut être contraint de la payer par toutes voies de droit.<br/>
+</CONTENU>
+</BLOC_TEXTUEL>
+<LIENS>
+<LIEN cidtexte="JORFTEXT000000698516" datesignatexte="1973-11-15" id="JORFTEXT000000698516" naturetexte="DECRET" nortexte="" num="" numtexte="73-1048" sens="source" typelien="CODIFICATION">Décret 73-1048 1973-11-15</LIEN>
+<LIEN cidtexte="JORFTEXT000000701778" datesignatexte="1984-07-16" id="JORFTEXT000000701778" naturetexte="DECRET" nortexte="" num="" numtexte="84-632" sens="source" typelien="SPEC_APPLI">Décret 84-632 1984-07-16 : Dispositions applicables dans le territoire de la Nouvelle-Calédonie et dépendances</LIEN>
+<LIEN cidtexte="JORFTEXT000000882349" datesignatexte="1989-11-27" id="LEGIARTI000006665069" naturetexte="DECRET" nortexte="TEFT8903888D" num="1" numtexte="89-861" sens="source" typelien="MODIFICATION">Décret n°89-861 du 27 novembre 1989 - art. 1 () JORF 28 novembre 1989</LIEN>
+<LIEN cidtexte="LEGITEXT000006072050" datesignatexte="2999-01-01" id="LEGIARTI000006644115" naturetexte="CODE" nortexte="" num="D122-15" numtexte="" sens="cible" typelien="CONCORDANCE">Code du travail - art. D122-15 (V)</LIEN>
+<LIEN cidtexte="LEGITEXT000006072050" datesignatexte="2999-01-01" id="LEGIARTI000006644121" naturetexte="CODE" nortexte="" num="D122-17" numtexte="" sens="cible" typelien="CONCORDANCE">Code du travail - art. D122-17 (T)</LIEN>
+<LIEN cidtexte="LEGITEXT000006072050" datesignatexte="2999-01-01" id="LEGIARTI000006644121" naturetexte="CODE" nortexte="" num="D122-17" numtexte="" sens="source" typelien="CONCORDE">Code du travail - art. D122-17 (T)</LIEN>
+<LIEN cidtexte="LEGITEXT000006072050" datesignatexte="2999-01-01" id="LEGIARTI000006644087" naturetexte="CODE" nortexte="" num="D122-7" numtexte="" sens="cible" typelien="CONCORDE">Code du travail - art. D122-7 (T)</LIEN>
+<LIEN cidtexte="LEGITEXT000006072050" datesignatexte="2999-01-01" id="LEGIARTI000006644087" naturetexte="CODE" nortexte="" num="D122-7" numtexte="" sens="source" typelien="CONCORDANCE">Code du travail - art. D122-7 (T)</LIEN>
+<LIEN cidtexte="LEGITEXT000006072050" datesignatexte="2999-01-01" id="LEGIARTI000006644093" naturetexte="CODE" nortexte="" num="D122-9" numtexte="" sens="source" typelien="CONCORDANCE">Code du travail - art. D122-9 (T)</LIEN>
+<LIEN cidtexte="LEGITEXT000006072050" datesignatexte="2999-01-01" id="LEGITEXT000006072050" naturetexte="CODE" nortexte="" num="" numtexte="" sens="source" typelien="TXT_SOURCE">Code du travail L122-14-4 AL. 2</LIEN>
+<LIEN cidtexte="LEGITEXT000006073189" datesignatexte="2999-01-01" id="LEGIARTI000006735207" naturetexte="CODE" nortexte="" num="D122-15" numtexte="" sens="source" typelien="CONCORDE">Code de la sécurité sociale. - art. D122-15 (V)</LIEN>
+</LIENS>
+</ARTICLE>
