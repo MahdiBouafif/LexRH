@@ -15,6 +15,7 @@ from sqlalchemy import (
     Text,
     func,
 )
+from sqlalchemy import text as sql_text
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -40,6 +41,14 @@ class Document(Base):
     status: Mapped[str] = mapped_column(String(32))
     content_hash: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Parsed article content (added in migration 0002). Chunks are built from these.
+    num: Mapped[str | None] = mapped_column(String(32), nullable=True)  # e.g. "L1234-1"
+    text_id: Mapped[str | None] = mapped_column(String(24), nullable=True, index=True)
+    hierarchy: Mapped[list[str]] = mapped_column(
+        JSONB, default=list, server_default=sql_text("'[]'::jsonb")
+    )
+    text: Mapped[str] = mapped_column(Text, default="", server_default="")
+    nota: Mapped[str] = mapped_column(Text, default="", server_default="")
 
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="document", cascade="all, delete")
 

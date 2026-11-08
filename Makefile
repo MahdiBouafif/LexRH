@@ -1,4 +1,17 @@
-.PHONY: install lint format typecheck test test-unit up down migrate
+.PHONY: install lint format typecheck test test-unit up down migrate ingest-dry ingest embed-dry embed
+
+# Usage: make ingest-dry DATA=data/raw/LEGITEXT000006072050
+ingest-dry:
+	uv run python -m lexrh.rag.ingest $(DATA) --dry-run
+
+embed-dry:
+	uv run python -m lexrh.rag.embed_chunks --dry-run
+
+embed:
+	uv run python -m lexrh.rag.embed_chunks
+
+ingest:
+	uv run python -m lexrh.rag.ingest $(DATA)
 
 install:
 	uv sync
