@@ -8,8 +8,6 @@ network with ``httpx.MockTransport``.
 from __future__ import annotations
 
 import hashlib
-import logging
-import random
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -18,16 +16,14 @@ from typing import Protocol
 import httpx
 
 from lexrh.config import EMBEDDING_DIM
-
-logger = logging.getLogger(__name__)
+from lexrh.rag.http import ApiError, post_json_with_retry
 
 MISTRAL_EMBEDDINGS_URL = "https://api.mistral.ai/v1/embeddings"
 MISTRAL_MODEL = "mistral-embed"
-RETRYABLE_STATUS = {408, 409, 425, 429, 500, 502, 503, 504}
 
 
-class EmbeddingError(RuntimeError):
-    """The embedding call failed for good (after retries, or a non-retryable error)."""
+class EmbeddingError(ApiError):
+    """The embedding call failed for good."""
 
 
 @dataclass(frozen=True)
@@ -62,45 +58,21 @@ class MistralEmbedder:
         self._max_delay = max_delay
         self._sleep = sleep
 
-    def _delay(self, attempt: int, response: httpx.Response | None) -> float:
-        """Honour Retry-After when the server sends it, else exponential backoff + jitter."""
-        if response is not None:
-            retry_after = response.headers.get("retry-after")
-            if retry_after:
-                try:
-                    return min(float(retry_after), self._max_delay)
-                except ValueError:
-                    pass
-        backoff = min(self._base_delay * float(2**attempt), self._max_delay)
-        jitter: float = random.uniform(0.5, 1.0)  # noqa: S311 (jitter, not security)
-        return backoff * jitter
-
     def embed(self, texts: list[str]) -> EmbeddingResult:
         if not texts:
             return EmbeddingResult(vectors=[], tokens=0)
-        payload = {"model": MISTRAL_MODEL, "input": texts}
-
-        for attempt in range(self._max_attempts):
-            response: httpx.Response | None = None
-            try:
-                response = self._client.post(
-                    MISTRAL_EMBEDDINGS_URL, json=payload, headers=self._headers
-                )
-            except httpx.TransportError as exc:  # timeouts, connection resets
-                logger.warning("embedding call failed (%s), attempt %d", exc, attempt + 1)
-            else:
-                if response.status_code == 200:
-                    return self._parse(response, expected=len(texts))
-                if response.status_code not in RETRYABLE_STATUS:
-                    raise EmbeddingError(
-                        f"Mistral returned {response.status_code}: {response.text[:200]}"
-                    )
-                logger.warning("Mistral returned %d, attempt %d", response.status_code, attempt + 1)
-
-            if attempt < self._max_attempts - 1:
-                self._sleep(self._delay(attempt, response))
-
-        raise EmbeddingError(f"Embedding failed after {self._max_attempts} attempts")
+        response = post_json_with_retry(
+            self._client,
+            MISTRAL_EMBEDDINGS_URL,
+            payload={"model": MISTRAL_MODEL, "input": texts},
+            headers=self._headers,
+            max_attempts=self._max_attempts,
+            base_delay=self._base_delay,
+            max_delay=self._max_delay,
+            sleep=self._sleep,
+            error_cls=EmbeddingError,
+        )
+        return self._parse(response, expected=len(texts))
 
     @staticmethod
     def _parse(response: httpx.Response, expected: int) -> EmbeddingResult:

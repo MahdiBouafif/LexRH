@@ -1,0 +1,14 @@
+# One case per line. "expected" = article numbers that must be found for this question on this date.
+# "verified": false until YOU checked the expected articles on Legifrance for that date.
+# The starter set below is written from memory and has NOT been checked: verify every line,
+# fix wrong ones, delete what you cannot confirm, then set "verified": true.
+{"id": "preavis-licenciement", "question": "Quelle est la durée du préavis en cas de licenciement ?", "as_of": "2020-01-01", "expected": ["L1234-1"], "verified": false}
+{"id": "conges-acquisition", "question": "Combien de jours de congés payés un salarié acquiert-il par mois de travail ?", "as_of": "2020-01-01", "expected": ["L3141-3"], "verified": false}
+{"id": "indemnite-licenciement", "question": "À partir de quelle ancienneté a-t-on droit à l'indemnité légale de licenciement ?", "as_of": "2020-01-01", "expected": ["L1234-9"], "verified": false}
+{"id": "periode-essai-cdi", "question": "Quelle est la durée maximale de la période d'essai d'un CDI ?", "as_of": "2020-01-01", "expected": ["L1221-19"], "verified": false}
+{"id": "duree-legale", "question": "Quelle est la durée légale du travail par semaine ?", "as_of": "2020-01-01", "expected": ["L3121-27"], "verified": false}
+{"id": "duree-max-hebdo", "question": "Quelle est la durée maximale hebdomadaire de travail ?", "as_of": "2020-01-01", "expected": ["L3121-20"], "verified": false}
+{"id": "heures-sup-majoration", "question": "De combien sont majorées les heures supplémentaires ?", "as_of": "2020-01-01", "expected": ["L3121-36"], "verified": false}
+{"id": "rupture-conventionnelle", "question": "Comment fonctionne la rupture conventionnelle du contrat de travail ?", "as_of": "2020-01-01", "expected": ["L1237-11"], "verified": false}
+{"id": "conge-maternite", "question": "Quelle est la durée du congé de maternité ?", "as_of": "2020-01-01", "expected": ["L1225-17"], "verified": false}
+{"id": "cdd-duree-max", "question": "Quelle est la durée maximale d'un CDD ?", "as_of": "2020-01-01", "expected": ["L1242-8-1"], "verified": true, "note": "L1242-8 only delegates to branch agreements; L1242-8-1 holds the 18-month default. Checked against the stored text for 2020-01-01."}

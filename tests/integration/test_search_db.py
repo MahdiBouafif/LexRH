@@ -111,3 +111,25 @@ def test_one_hit_per_article_and_k_is_respected(engine) -> None:  # type: ignore
 
 def test_empty_question_returns_nothing(engine) -> None:  # type: ignore[no-untyped-def]
     assert search(engine, HashEmbedder(), "   ", date(2026, 11, 8)) == []
+
+
+class ReverseReranker:
+    """Fake reranker: puts the worst fusion candidate first. Proves the plumbing, not quality."""
+
+    def __init__(self) -> None:
+        self.seen: list[int] = []
+
+    def rerank(self, question, as_of, hits):  # type: ignore[no-untyped-def]
+        self.seen.append(len(hits))
+        return list(reversed(hits))
+
+
+def test_reranker_gets_a_pool_larger_than_k_and_decides_the_order(engine) -> None:  # type: ignore[no-untyped-def]
+    plain = search(engine, HashEmbedder(), "licenciement", date(2026, 11, 8), k=2)
+    fake = ReverseReranker()
+    pooled = search(
+        engine, HashEmbedder(), "licenciement", date(2026, 11, 8), k=2, reranker=fake, rerank_pool=6
+    )
+    assert fake.seen[0] > 2  # more candidates than k were handed over
+    assert len(pooled) == 2
+    assert [h.num for h in pooled] != [h.num for h in plain]  # the reranker changed the order

@@ -144,3 +144,15 @@ def test_call_groups_respect_count_and_token_limits() -> None:
     big = ["y" * 30_000, "y" * 30_000]  # about 10k estimated tokens each
     assert [len(g) for g in _call_groups(big)] == [1, 1]
     assert sorted(i for g in groups for i in g) == list(range(len(many)))
+
+
+def test_zero_quota_is_not_retried() -> None:
+    attempts = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts["n"] += 1
+        return httpx.Response(429, headers={"x-ratelimit-limit-req-minute": "0"})
+
+    with pytest.raises(EmbeddingError, match="No quota"):
+        _embedder(handler).embed(["x"])
+    assert attempts["n"] == 1

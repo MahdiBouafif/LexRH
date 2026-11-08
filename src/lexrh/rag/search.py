@@ -22,9 +22,9 @@ import re
 import sys
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
@@ -34,11 +34,15 @@ from lexrh.db.session import get_engine
 from lexrh.rag.embeddings import Embedder, MistralEmbedder
 from lexrh.rag.ingest import CODE_DU_TRAVAIL
 
+if TYPE_CHECKING:
+    from lexrh.rag.rerank import Reranker
+
 logger = logging.getLogger(__name__)
 
 RRF_K = 60  # standard constant from the original RRF paper; damps the weight of top ranks
 CANDIDATES = 50  # per search, before fusion
 DEFAULT_TOP_K = 5
+RERANK_POOL = 20  # candidates handed to the reranker
 EF_SEARCH = 100  # HNSW: how many neighbours are explored (default 40); higher = better recall
 
 # Documents valid on :as_of, one version per article. Alias `d` is the documents table.
@@ -121,7 +125,7 @@ class SearchHit:
     score: float
     vector_rank: int | None = None
     keyword_rank: int | None = None
-    ranks: dict[str, int] = field(default_factory=dict)
+    rerank_score: float | None = None
 
 
 def _vector_literal(vector: Sequence[float]) -> str:
@@ -158,8 +162,14 @@ def search(
     k: int = DEFAULT_TOP_K,
     text_id: str = CODE_DU_TRAVAIL,
     candidates: int = CANDIDATES,
+    reranker: Reranker | None = None,
+    rerank_pool: int = RERANK_POOL,
 ) -> list[SearchHit]:
-    """Return the top ``k`` articles for ``question``, as in force on ``as_of``."""
+    """Return the top ``k`` articles for ``question``, as in force on ``as_of``.
+
+    With a ``reranker``, the best ``rerank_pool`` articles of the fusion are reordered by it and
+    the top ``k`` of that order are returned.
+    """
     question = question.strip()
     if not question:
         return []
@@ -216,9 +226,11 @@ def search(
                 keyword_rank=keyword_rank.get(chunk_id),
             )
         )
-        if len(hits) == k:
+        if len(hits) == max(k, rerank_pool if reranker else 0):
             break
-    return hits
+    if reranker is not None:
+        hits = reranker.rerank(question, as_of, hits)
+    return hits[:k]
 
 
 def format_hits(hits: Sequence[SearchHit], as_of: date) -> str:
@@ -230,7 +242,8 @@ def format_hits(hits: Sequence[SearchHit], as_of: date) -> str:
         ranks = f"vector #{hit.vector_rank or '-'}, keyword #{hit.keyword_rank or '-'}"
         preview = hit.text.replace("\n", " ")[:220]
         lines.append(f"{position}. Article {hit.num}  [{hit.status}, {validity}]  ({ranks})")
-        lines.append(f"   score {hit.score:.4f}  {preview}...")
+        rerank = f"  rerank {hit.rerank_score:.0f}/10" if hit.rerank_score is not None else ""
+        lines.append(f"   score {hit.score:.4f}{rerank}  {preview}...")
         lines.append("")
     return "\n".join(lines)
 
@@ -241,11 +254,34 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--date", default=None, help="YYYY-MM-DD (default: today)")
     parser.add_argument("-k", type=int, default=DEFAULT_TOP_K)
     parser.add_argument("--text-id", default=CODE_DU_TRAVAIL)
+    parser.add_argument("--rerank", action="store_true", help="reorder the top candidates")
+    parser.add_argument("--rerank-backend", choices=["local", "mistral"], default=None)
     args = parser.parse_args(argv)
 
     as_of = date.fromisoformat(args.date) if args.date else date.today()
-    embedder = MistralEmbedder(get_settings().mistral_api_key)
-    hits = search(get_engine(), embedder, args.question, as_of, k=args.k, text_id=args.text_id)
+    settings = get_settings()
+    api_key = settings.mistral_api_key
+    embedder = MistralEmbedder(api_key)
+    reranker = None
+    if args.rerank:
+        from lexrh.rag.rerank import build_reranker
+
+        reranker = build_reranker(
+            args.rerank_backend or settings.rerank_backend,
+            api_key=api_key,
+            model=settings.rerank_model,
+            min_interval=settings.chat_min_interval,
+            local_model=settings.local_rerank_model,
+        )
+    hits = search(
+        get_engine(),
+        embedder,
+        args.question,
+        as_of,
+        k=args.k,
+        text_id=args.text_id,
+        reranker=reranker,
+    )
     print(format_hits(hits, as_of))
     return 0
 

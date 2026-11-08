@@ -1,0 +1,22 @@
+# DRAFT written from memory: NOTHING here is verified. For each line run the check query in
+# evals/README.md, read the stored text for that date, fix "expected" or delete the line,
+# then set "verified": true. Run with: uv run python -m lexrh.eval.retrieval evals/retrieval_questions_v2.jsonl --rerank
+# Questions are phrased the way an employee or a manager actually asks, not like a textbook.
+{"id": "v2-essai-duree", "question": "mon patron veut une période d'essai de 6 mois en CDI pour un employé, c'est légal ?", "as_of": "2023-01-01", "expected": ["L1221-19"], "verified": false}
+{"id": "v2-essai-renouvel", "question": "peut-on renouveler la période d'essai d'un salarié", "as_of": "2023-01-01", "expected": ["L1221-21"], "verified": false}
+{"id": "v2-conv-collective-rupture", "question": "on veut se séparer à l'amiable, comment ça marche la rupture conventionnelle ?", "as_of": "2023-01-01", "expected": ["L1237-11"], "verified": false}
+{"id": "v2-homologation", "question": "qui valide une rupture conventionnelle et sous quel délai", "as_of": "2023-01-01", "expected": ["L1237-14"], "verified": false}
+{"id": "v2-entretien-prealable", "question": "délai minimum entre la convocation à l'entretien préalable et l'entretien", "as_of": "2023-01-01", "expected": ["L1232-2"], "verified": false}
+{"id": "v2-prescription-faute", "question": "jusqu'à quand l'employeur peut sanctionner une faute après l'avoir découverte", "as_of": "2023-01-01", "expected": ["L1332-4"], "verified": false}
+{"id": "v2-prime-precarite", "question": "à combien s'élève la prime de fin de CDD", "as_of": "2023-01-01", "expected": ["L1243-8"], "verified": false}
+{"id": "v2-cdd-18-mois", "question": "durée maximale d'un CDD renouvellement compris", "as_of": "2023-01-01", "expected": ["L1242-8-1"], "verified": false}
+{"id": "v2-paternite", "question": "mon mari a droit à combien de jours de congé quand le bébé naît", "as_of": "2023-01-01", "expected": ["L1225-35"], "verified": false}
+{"id": "v2-maternite", "question": "durée du congé maternité pour un premier enfant", "as_of": "2023-01-01", "expected": ["L1225-17"], "verified": false}
+{"id": "v2-repos-hebdo", "question": "un salarié peut-il travailler 7 jours d'affilée", "as_of": "2023-01-01", "expected": ["L3132-1", "L3132-2"], "verified": false}
+{"id": "v2-moy-12-semaines", "question": "durée moyenne maximale du travail sur 12 semaines consécutives", "as_of": "2023-01-01", "expected": ["L3121-22"], "verified": false}
+{"id": "v2-jours-feries", "question": "le 1er mai est-il obligatoirement férié et chômé", "as_of": "2023-01-01", "expected": ["L3133-4"], "verified": false}
+{"id": "v2-harcelement", "question": "définition du harcèlement moral au travail", "as_of": "2023-01-01", "expected": ["L1152-1"], "verified": false}
+{"id": "v2-prescription-contrat", "question": "combien de temps pour contester un licenciement devant les prud'hommes", "as_of": "2023-01-01", "expected": ["L1471-1"], "verified": false}
+{"id": "v2-bareme-2023", "question": "indemnité minimale et maximale si le licenciement est sans cause réelle et sérieuse", "as_of": "2023-01-01", "expected": ["L1235-3"], "verified": false, "note": "date test: same article number, different text before 2017-09-24"}
+{"id": "v2-bareme-2015", "question": "indemnité minimale et maximale si le licenciement est sans cause réelle et sérieuse", "as_of": "2015-01-01", "expected": ["L1235-3"], "verified": false, "note": "date test: before the 2017 ordonnances; the answer must differ from v2-bareme-2023"}
+{"id": "v2-conges-2012", "question": "nombre de jours de congés payés acquis par mois travaillé", "as_of": "2012-06-01", "expected": ["L3141-3"], "verified": false}
