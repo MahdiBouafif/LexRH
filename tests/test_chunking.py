@@ -31,8 +31,8 @@ def test_empty_text_gives_no_chunk() -> None:
     assert chunk_article(num="L1", hierarchy=HIERARCHY, text="  \n ") == []
 
 
-def test_nota_is_appended_to_the_last_chunk_only() -> None:
-    paragraphs = "\n".join(f"Alinéa {i} " + "mot " * 60 for i in range(20))
+def test_short_nota_ends_the_last_chunk_and_appears_once() -> None:
+    paragraphs = "\n".join(f"Alinéa {i} " + " ".join(["mot"] * 60) for i in range(20))
     chunks = chunk_article(
         num="L1",
         hierarchy=HIERARCHY,
@@ -41,8 +41,36 @@ def test_nota_is_appended_to_the_last_chunk_only() -> None:
         max_tokens=200,
     )
     assert len(chunks) > 1
-    assert all(NOTA_LABEL not in chunk.text for chunk in chunks[:-1])
+    assert sum(NOTA_LABEL in chunk.text for chunk in chunks) == 1
     assert chunks[-1].text.endswith(f"{NOTA_LABEL} Applicable au 1er mai.")
+
+
+def test_huge_nota_cannot_break_the_budget() -> None:
+    nota = "\n".join(f"Disposition {i} " + " ".join(["mot"] * 80) for i in range(40))
+    chunks = chunk_article(
+        num="L1", hierarchy=HIERARCHY, text="Texte court.", nota=nota, max_tokens=300
+    )
+    assert len(chunks) > 1
+    assert all(chunk.token_estimate <= 300 for chunk in chunks)
+    assert all(chunk.text.startswith("Partie législative") for chunk in chunks)
+    assert NOTA_LABEL in "\n".join(chunk.text for chunk in chunks)
+
+
+def test_very_long_hierarchy_is_shortened_from_the_top() -> None:
+    levels = [f"Niveau {i} " + "x" * 200 for i in range(10)]
+    header = build_header("L1", levels, max_chars=300)
+    assert len(header) <= 300
+    assert header.startswith("…")
+    assert header.endswith("Article L1")
+    chunks = chunk_article(num="L1", hierarchy=levels, text="Texte.", max_tokens=300)
+    assert all(chunk.token_estimate <= 300 for chunk in chunks)
+
+
+def test_single_giant_word_is_cut_by_characters() -> None:
+    chunks = chunk_article(num="L1", hierarchy=[], text="a" * 5000, max_tokens=100)
+    assert len(chunks) > 1
+    assert all(chunk.token_estimate <= 100 for chunk in chunks)
+    assert "".join(chunk.text.split("\n")[1] for chunk in chunks) == "a" * 5000
 
 
 def test_long_article_splits_on_paragraphs_within_budget() -> None:

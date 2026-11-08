@@ -26,7 +26,13 @@ from lexrh.config import get_settings
 from lexrh.db.models import Chunk as ChunkRow
 from lexrh.db.models import Document
 from lexrh.db.session import get_engine
-from lexrh.rag.chunking import DEFAULT_MAX_TOKENS, Chunk, chunk_article, estimate_tokens
+from lexrh.rag.chunking import (
+    CHUNKER_VERSION,
+    DEFAULT_MAX_TOKENS,
+    Chunk,
+    chunk_article,
+    estimate_tokens,
+)
 from lexrh.rag.embeddings import Embedder, MistralEmbedder
 
 logger = logging.getLogger(__name__)
@@ -41,7 +47,8 @@ DEFAULT_PRICE_PER_MILLION = 0.10  # USD. ASSUMPTION: check your Mistral console 
 class EmbedStats:
     documents: int = 0
     chunks: int = 0
-    estimated_tokens: int = 0
+    reused_chunks: int = 0  # identical text already embedded: no API call
+    estimated_tokens: int = 0  # only chunks that still need an API call
     billed_tokens: int = 0  # reported by the API (real run only)
     multi_chunk_documents: int = 0
     largest_chunk_tokens: int = 0
@@ -50,11 +57,12 @@ class EmbedStats:
 
 
 def _has_current_chunks() -> Any:
-    """SQL condition: this document already has a chunk built from its current hash."""
+    """SQL condition: a chunk exists built from the current content AND current chunker."""
     meta: Any = ChunkRow.meta
     return exists().where(
         ChunkRow.document_id == Document.id,
         meta["content_hash"].as_string() == Document.content_hash,
+        meta["chunker"].as_string() == CHUNKER_VERSION,
     )
 
 
@@ -80,12 +88,33 @@ def _chunks_of(document: Document, max_tokens: int) -> list[Chunk]:
     )
 
 
-def _record(stats: EmbedStats, document: Document, chunks: Sequence[Chunk]) -> None:
+def _existing_embeddings(
+    session: Session, document_ids: Sequence[uuid.UUID], *, with_vectors: bool
+) -> dict[tuple[uuid.UUID, str], Any]:
+    """Chunks already stored for these documents, keyed by (document, text)."""
+    column: Any = ChunkRow.embedding if with_vectors else ChunkRow.ord
+    rows = session.execute(
+        select(ChunkRow.document_id, ChunkRow.text, column).where(
+            ChunkRow.document_id.in_(document_ids)
+        )
+    )
+    return {(row[0], row[1]): row[2] for row in rows}
+
+
+def _record(
+    stats: EmbedStats,
+    document: Document,
+    chunks: Sequence[Chunk],
+    reusable: dict[tuple[uuid.UUID, str], Any],
+) -> None:
     stats.documents += 1
     stats.chunks += len(chunks)
     for chunk in chunks:
-        stats.estimated_tokens += chunk.token_estimate
         stats.largest_chunk_tokens = max(stats.largest_chunk_tokens, chunk.token_estimate)
+        if (document.id, chunk.text) in reusable:
+            stats.reused_chunks += 1
+        else:
+            stats.estimated_tokens += chunk.token_estimate
     if len(chunks) > 1:
         stats.multi_chunk_documents += 1
         stats.biggest_documents.append((document.num or document.legal_id, len(chunks)))
@@ -137,10 +166,11 @@ def dry_run(
             batch = _pending_batch(session, after, doc_batch, text_id)
             if not batch:
                 break
+            reusable = _existing_embeddings(session, [d.id for d in batch], with_vectors=False)
             for document in batch:
                 if limit is not None and stats.documents >= limit:
                     break
-                _record(stats, document, _chunks_of(document, max_tokens))
+                _record(stats, document, _chunks_of(document, max_tokens), reusable)
             after = batch[-1].id
     return stats
 
@@ -166,25 +196,35 @@ def embed_pending(
                 batch = batch[: limit - stats.documents]
 
             per_document = [(document, _chunks_of(document, max_tokens)) for document in batch]
-            texts = [chunk.text for _, chunks in per_document for chunk in chunks]
-            vectors = _embed_texts(embedder, texts, stats)
+            reusable = _existing_embeddings(session, [d.id for d in batch], with_vectors=True)
 
-            # Replace old chunks (document changed) and insert the new ones, atomically.
+            # Embed only the chunks whose exact text is not already stored for that document.
+            to_embed = [
+                chunk.text
+                for document, chunks in per_document
+                for chunk in chunks
+                if (document.id, chunk.text) not in reusable
+            ]
+            new_vectors = iter(_embed_texts(embedder, to_embed, stats))
+
+            # Replace old chunks (document changed or chunker changed) atomically.
             session.execute(delete(ChunkRow).where(ChunkRow.document_id.in_([d.id for d in batch])))
-            position = 0
             for document, chunks in per_document:
-                _record(stats, document, chunks)
+                _record(stats, document, chunks, reusable)
                 for chunk in chunks:
+                    known = reusable.get((document.id, chunk.text))
                     session.add(
                         ChunkRow(
                             document_id=document.id,
                             ord=chunk.ord,
                             text=chunk.text,
-                            embedding=vectors[position],
-                            meta={"content_hash": document.content_hash},
+                            embedding=known if known is not None else next(new_vectors),
+                            meta={
+                                "content_hash": document.content_hash,
+                                "chunker": CHUNKER_VERSION,
+                            },
                         )
                     )
-                    position += 1
             session.commit()
             after = batch[-1].id
             logger.info("embedded %d documents, %d chunks", stats.documents, stats.chunks)
@@ -193,12 +233,13 @@ def embed_pending(
 
 def format_report(stats: EmbedStats, *, wrote: bool, price_per_million: float) -> str:
     tokens = stats.billed_tokens if wrote and stats.billed_tokens else stats.estimated_tokens
-    label = "billed tokens" if wrote and stats.billed_tokens else "estimated tokens (pessimistic)"
+    label = "billed tokens" if wrote and stats.billed_tokens else "estimated tokens to embed"
     cost = tokens / 1_000_000 * price_per_million
     lines = [
         "",
         f"documents to process:      {stats.documents}",
         f"chunks:                    {stats.chunks}",
+        f"  reused (no API call):    {stats.reused_chunks}",
         f"documents split in >1:     {stats.multi_chunk_documents}",
         f"largest chunk (est. tok):  {stats.largest_chunk_tokens}",
         f"{label + ':':<27}{tokens}",

@@ -98,3 +98,19 @@ def test_changed_document_gets_new_chunks(engine) -> None:  # type: ignore[no-un
 def test_limit_stops_early(engine) -> None:  # type: ignore[no-untyped-def]
     stats = embed_pending(engine, HashEmbedder(), limit=3)
     assert stats.documents == 3
+
+
+def test_new_chunker_version_reuses_embeddings_without_api_calls(engine) -> None:  # type: ignore[no-untyped-def]
+    fake = HashEmbedder()
+    first = embed_pending(engine, fake)
+    # Simulate chunks written by an older chunker: version key missing.
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE chunks SET metadata = metadata - 'chunker'"))
+
+    calls_before = len(fake.calls)
+    second = embed_pending(engine, fake)
+    assert second.documents == first.documents
+    assert second.reused_chunks == first.chunks
+    assert len(fake.calls) == calls_before  # same text, so nothing re-sent
+    assert _count(engine, "SELECT count(*) FROM chunks") == first.chunks
+    assert _count(engine, "SELECT count(*) FROM chunks WHERE metadata ? 'chunker'") == first.chunks
