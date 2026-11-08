@@ -52,7 +52,10 @@ class Document(Base):
 
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="document", cascade="all, delete")
 
-    __table_args__ = (Index("ix_documents_idcc_validity", "idcc", "valid_from", "valid_to"),)
+    __table_args__ = (
+        Index("ix_documents_idcc_validity", "idcc", "valid_from", "valid_to"),
+        Index("ix_documents_text_num_from", "text_id", "num", "valid_from"),
+    )
 
 
 class Chunk(Base):
