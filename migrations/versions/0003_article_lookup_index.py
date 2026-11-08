@@ -18,9 +18,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.create_index(
-        "ix_documents_text_num_from", "documents", ["text_id", "num", "valid_from"]
-    )
+    op.create_index("ix_documents_text_num_from", "documents", ["text_id", "num", "valid_from"])
 
 
 def downgrade() -> None:
