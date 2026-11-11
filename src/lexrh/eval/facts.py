@@ -6,10 +6,10 @@ A case may carry
                       (["2 mois", "deux mois"]).
     must_not_contain  strings that must not appear anywhere in the answer.
 
-Matching is case-insensitive and ignores accents-neutral spacing differences (non-breaking
-spaces, curly apostrophes, repeated blanks). It is a substring check: it catches a missing
-or forbidden figure, not a wrong sentence around a correct figure (min/max swapped), so a
-case can also be flagged ``manual_review``.
+Matching is case-insensitive and ignores spacing and typography differences (non-breaking
+spaces, curly apostrophes, repeated blanks, markdown ** and backticks). It is a substring
+check: it catches a missing or forbidden figure, not a wrong sentence around a correct figure
+(min/max swapped), so a case can also be flagged ``manual_review``.
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ class FactsResult:
 def normalize(value: str) -> str:
     value = value.replace(" ", " ").replace(" ", " ").replace("’", "'")
     value = value.replace("‑", "-").replace("‐", "-")
+    value = value.replace("*", "").replace("`", "")  # markdown emphasis must not split a phrase
     return re.sub(r"\s+", " ", value).strip().casefold()
 
 

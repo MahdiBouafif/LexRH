@@ -53,3 +53,7 @@ def test_rewriter_sends_the_question_as_data() -> None:
     generator = FakeGenerator(json.dumps({"query": "x y"}))
     assert LLMQueryRewriter(generator).rewrite("ma question", D) == "x y"
     assert "ma question" in generator.seen[0]
+
+
+def test_the_word_null_is_not_a_search_query() -> None:
+    assert parse_query('{"query": "null"}', "question") is None

@@ -48,6 +48,9 @@ class QueryRewriter(Protocol):
     def rewrite(self, question: str, as_of: date) -> str | None: ...
 
 
+NO_QUERY = {"null", "none", "n/a", "aucune", "aucun", "rien"}  # "no rewrite" spelled in words
+
+
 def parse_query(raw: str, original: str) -> str | None:
     """Extract the rewritten query, or None when it is unusable or adds nothing."""
     cleaned = raw.strip()
@@ -61,7 +64,7 @@ def parse_query(raw: str, original: str) -> str | None:
     if not isinstance(query, str):
         return None
     query = re.sub(r"\s+", " ", query).strip()[:MAX_QUERY_CHARS]
-    if not query or query.lower() == original.strip().lower():
+    if not query or query.lower() in NO_QUERY or query.lower() == original.strip().lower():
         return None
     return query
 

@@ -62,7 +62,7 @@ ask: ## Ask a question: make ask Q="..." DATE=2020-01-01
 
 .PHONY: eval-answers
 eval-answers: ## End-to-end /ask evaluation (needs the generator settings in .env)
-	uv run python -m lexrh.eval.answers --pause 2 --out evals/last_answers_report.md
+	uv run python -m lexrh.eval.answers --pause 31 --out evals/last_answers_report.md
 
 .PHONY: doctor
 doctor: ## Quick setup check (settings, database, APIs, one real question)
@@ -71,3 +71,7 @@ doctor: ## Quick setup check (settings, database, APIs, one real question)
 .PHONY: diagnose
 diagnose: ## Where do expected articles land before reranking? (ids: make diagnose IDS="v2-homologation ...")
 	uv run python -m lexrh.eval.diagnose evals/retrieval_questions_v2.jsonl $(if $(IDS),--only $(IDS),)
+
+.PHONY: graph
+graph: ## Print the /ask LangGraph pipeline as a Mermaid diagram (docs/ask-graph.md)
+	uv run python -m lexrh.rag.pipeline

@@ -65,3 +65,10 @@ def test_load_cases_reads_the_wording_fields(tmp_path: Path) -> None:
     assert case.must_contain == (("2 mois", "deux mois"), ("rétract",))
     assert case.must_not_contain == ("DIRECCTE",)
     assert case.manual_review is True
+
+
+def test_markdown_emphasis_does_not_split_a_required_phrase() -> None:
+    result = check_facts(
+        "Des agissements **répétés** et `graves`.", req(("agissements répétés",)), ()
+    )
+    assert result.ok

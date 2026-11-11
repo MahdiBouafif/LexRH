@@ -197,7 +197,7 @@ def format_report(results: Sequence[AnswerResult]) -> str:
     lines.append("")
     for r in results:
         expected = ", ".join(r.expected) or "-"
-        lines.append(f"## {r.id}  [{_verdict(r)}]")
+        lines.append(f"## {r.id}  [{_verdict(r)}]  {r.seconds:.1f}s")
         lines.append(f"Q: {r.question}")
         if r.answer is not None and r.answer.rewritten:
             lines.append(f"searched also: {r.answer.rewritten}")
