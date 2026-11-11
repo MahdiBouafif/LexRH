@@ -29,6 +29,7 @@ from lexrh.db.session import get_engine
 from lexrh.rag.embeddings import MistralEmbedder
 from lexrh.rag.rerank import build_reranker
 from lexrh.rag.search import DEFAULT_TOP_K, SearchHit, search
+from lexrh.eval.facts import check_facts
 
 SearchFn = Callable[[str, date, int], Sequence[SearchHit]]
 

@@ -63,3 +63,7 @@ ask: ## Ask a question: make ask Q="..." DATE=2020-01-01
 .PHONY: eval-answers
 eval-answers: ## End-to-end /ask evaluation (needs the generator settings in .env)
 	uv run python -m lexrh.eval.answers --pause 2 --out evals/last_answers_report.md
+
+.PHONY: doctor
+doctor: ## Quick setup check (settings, database, APIs, one real question)
+	uv run python -m lexrh.doctor
