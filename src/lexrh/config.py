@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # Only for reasoning models that accept it (e.g. "none"); empty = do not send the parameter.
     generator_reasoning_effort: str = ""
     answer_top_k: int = 5
+    # Model used to rewrite the question into legal wording before searching (same server and
+    # key as the answer model). Empty = off. A different model than the answer model has its
+    # own rate limit, e.g. ministral-8b-latest next to ministral-14b-latest.
+    rewrite_model: str = ""
     # Refuse when the best article's rerank score (0..10) is below this. 0 = disabled until
     # it is tuned on questions the Code du travail does not answer.
     min_relevance: float = 0.0

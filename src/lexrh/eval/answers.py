@@ -26,9 +26,12 @@ from datetime import date
 from pathlib import Path
 from typing import Protocol
 
+from lexrh.eval.facts import FactsResult, check_facts
 from lexrh.eval.retrieval import Case, load_cases
 from lexrh.rag.answer import Answer
 from lexrh.rag.http import ApiError
+
+MAX_CONSECUTIVE_ERRORS = 3
 
 
 class Asker(Protocol):
@@ -51,6 +54,17 @@ class AnswerResult:
     answer: Answer | None  # None when the model could not be reached
     error: str
     seconds: float
+    case: Case | None = None  # the labelled case, None for refusal questions
+
+    @property
+    def facts(self) -> FactsResult | None:
+        """Wording checks, only for answered questions whose case defines any."""
+        case = self.case
+        if case is None or self.answer is None or self.answer.refused:
+            return None
+        if not case.must_contain and not case.must_not_contain:
+            return None
+        return check_facts(self.answer.answer, case.must_contain, case.must_not_contain)
 
     @property
     def refused(self) -> bool:
@@ -76,7 +90,13 @@ def load_refusals(path: Path) -> list[RefusalCase]:
 
 
 def _run(
-    asker: Asker, id_: str, question: str, as_of: date, expected: tuple[str, ...], refusal: bool
+    asker: Asker,
+    id_: str,
+    question: str,
+    as_of: date,
+    expected: tuple[str, ...],
+    refusal: bool,
+    case: Case | None = None,
 ) -> AnswerResult:
     started = time.perf_counter()
     try:
@@ -84,7 +104,7 @@ def _run(
     except ApiError as exc:
         answer, error = None, str(exc)
     return AnswerResult(
-        id_, question, refusal, expected, answer, error, time.perf_counter() - started
+        id_, question, refusal, expected, answer, error, time.perf_counter() - started, case
     )
 
 
@@ -98,26 +118,54 @@ def evaluate(
     progress: Callable[[str], None] = lambda line: None,
 ) -> list[AnswerResult]:
     results: list[AnswerResult] = []
-    todo = [(c.id, c.question, c.as_of, c.expected, False) for c in answerable] + [
-        (r.id, r.question, r.as_of, (), True) for r in unanswerable
-    ]
-    for index, (id_, question, as_of, expected, refusal) in enumerate(todo, start=1):
+    todo: list[tuple[str, str, date, tuple[str, ...], bool, Case | None]] = [
+        (c.id, c.question, c.as_of, c.expected, False, c) for c in answerable
+    ] + [(r.id, r.question, r.as_of, (), True, None) for r in unanswerable]
+    for index, (id_, question, as_of, expected, refusal, case) in enumerate(todo, start=1):
         if index > 1 and pause:
             sleep(pause)
-        result = _run(asker, id_, question, as_of, expected, refusal)
+        result = _run(asker, id_, question, as_of, expected, refusal, case)
         results.append(result)
         progress(f"[{index}/{len(todo)}] {id_}: {_verdict(result)}")
+        if len(results) >= MAX_CONSECUTIVE_ERRORS and all(
+            r.answer is None for r in results[-MAX_CONSECUTIVE_ERRORS:]
+        ):
+            progress(
+                f"Stopping: {MAX_CONSECUTIVE_ERRORS} errors in a row means the setup is wrong "
+                "(model name, key or limits). Fix it, then run `make doctor`."
+            )
+            break
     return results
 
 
 def _verdict(result: AnswerResult) -> str:
     if result.answer is None:
-        return "ERROR"
+        return f"ERROR ({result.error[:160]})"
     if result.expect_refusal:
         return "refused (good)" if result.refused else "ANSWERED (hallucination)"
     if result.refused:
         return f"refused ({result.answer.reason})"
-    return "cited expected" if result.cited_expected else f"cited {list(result.cited)}"
+    verdict = "cited expected" if result.cited_expected else f"cited {list(result.cited)}"
+    facts = result.facts
+    if facts is not None and not facts.ok:
+        verdict += " | WORDING CHECK FAILED"
+    if result.case is not None and result.case.manual_review:
+        verdict += " | MANUAL REVIEW"
+    return verdict
+
+
+def _facts_lines(result: AnswerResult) -> list[str]:
+    facts = result.facts
+    if facts is None:
+        return []
+    if facts.ok:
+        return ["wording: ok"]
+    lines = []
+    for requirement in facts.missing:
+        lines.append(f"wording: MISSING one of {list(requirement)}")
+    for item in facts.forbidden:
+        lines.append(f"wording: FORBIDDEN {item!r} appears")
+    return lines
 
 
 def _share(part: int, whole: int) -> str:
@@ -132,10 +180,14 @@ def format_report(results: Sequence[AnswerResult]) -> str:
     cited = sum(r.cited_expected for r in answerable)
     false_refusals = sum(r.refused for r in answerable)
     good_refusals = sum(r.refused for r in unanswerable)
+    checked = [r for r in answerable if r.facts is not None]
+    facts_ok = sum(1 for r in checked if r.facts is not None and r.facts.ok)
     lines = [
         f"answerable: {len(answerable)}   unanswerable: {len(unanswerable)}   "
         f"errors: {len(errors)}",
         f"cited an expected article: {_share(cited, len(answerable))}",
+        f"wording checks passed:     {_share(facts_ok, len(checked))} "
+        "(answered questions with checks)",
         f"false refusals:            {_share(false_refusals, len(answerable))}",
         f"correct refusals:          {_share(good_refusals, len(unanswerable))}",
     ]
@@ -144,15 +196,21 @@ def format_report(results: Sequence[AnswerResult]) -> str:
         lines.append(f"time per question: {average:.1f}s average, {max(seconds):.1f}s slowest")
     lines.append("")
     for r in results:
+        expected = ", ".join(r.expected) or "-"
         lines.append(f"## {r.id}  [{_verdict(r)}]")
         lines.append(f"Q: {r.question}")
+        if r.answer is not None and r.answer.rewritten:
+            lines.append(f"searched also: {r.answer.rewritten}")
         if r.answer is None:
             lines.append(f"error: {r.error}")
         elif r.refused:
             lines.append(f"refused: {r.answer.reason}")
+            lines.append(f"shown: {', '.join(r.answer.retrieved) or '-'}   expected: {expected}")
         else:
             lines.append(f"A: {r.answer.answer}")
-            lines.append(f"cited: {', '.join(r.cited)}   expected: {', '.join(r.expected) or '-'}")
+            lines.append(f"cited: {', '.join(r.cited)}   expected: {expected}")
+            lines.append(f"shown: {', '.join(r.answer.retrieved) or '-'}")
+            lines.extend(_facts_lines(r))
         lines.append("")
     return "\n".join(lines)
 

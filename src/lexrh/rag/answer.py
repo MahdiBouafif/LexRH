@@ -25,9 +25,11 @@ from typing import Any
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
 
+from lexrh.config import Settings
 from lexrh.rag.embeddings import Embedder
 from lexrh.rag.generate import Generator
 from lexrh.rag.rerank import Reranker
+from lexrh.rag.rewrite import QueryRewriter
 from lexrh.rag.search import DEFAULT_TOP_K, SearchHit, search
 
 logger = logging.getLogger(__name__)
@@ -75,6 +77,7 @@ class Answer:
     sources: list[Source] = field(default_factory=list)  # the articles actually cited
     retrieved: list[str] = field(default_factory=list)  # every article the model was shown
     invalid_citations: list[str] = field(default_factory=list)
+    rewritten: str | None = None  # the extra search query, when query rewriting is on
 
 
 REFUSAL_REASONS = {
@@ -171,7 +174,12 @@ def load_articles(engine: Engine, document_ids: Sequence[uuid.UUID]) -> dict[uui
 
 
 def _refuse(
-    reason: str, question: str, as_of: date, retrieved: list[str], invalid: list[str] | None = None
+    reason: str,
+    question: str,
+    as_of: date,
+    retrieved: list[str],
+    invalid: list[str] | None = None,
+    rewritten: str | None = None,
 ) -> Answer:
     return Answer(
         question=question,
@@ -181,6 +189,7 @@ def _refuse(
         reason=reason,
         retrieved=retrieved,
         invalid_citations=invalid or [],
+        rewritten=rewritten,
     )
 
 
@@ -194,18 +203,34 @@ def ask(
     *,
     k: int = DEFAULT_TOP_K,
     min_relevance: float = 0.0,
+    rewriter: QueryRewriter | None = None,
 ) -> Answer:
     """Answer ``question`` as the law stood on ``as_of``, or refuse. Raises GenerationError
     when the answer model cannot be reached (the caller decides what to tell the user)."""
     started = time.perf_counter()
-    hits: list[SearchHit] = search(engine, embedder, question, as_of, k=k, reranker=reranker)
+    rewritten = rewriter.rewrite(question, as_of) if rewriter else None
+    hits: list[SearchHit] = search(
+        engine,
+        embedder,
+        question,
+        as_of,
+        k=k,
+        reranker=reranker,
+        extra_queries=[rewritten] if rewritten else [],
+    )
     searched = time.perf_counter()
     if not hits:
-        return _refuse("no_articles", question, as_of, [])
+        return _refuse("no_articles", question, as_of, [], rewritten=rewritten)
 
     best = hits[0].rerank_score
     if min_relevance > 0 and best is not None and best < min_relevance:
-        return _refuse("low_relevance", question, as_of, [h.num or h.legal_id for h in hits])
+        return _refuse(
+            "low_relevance",
+            question,
+            as_of,
+            [h.num or h.legal_id for h in hits],
+            rewritten=rewritten,
+        )
 
     articles = load_articles(engine, [hit.document_id for hit in hits])
     shown: dict[str, Any] = {}
@@ -214,7 +239,7 @@ def ask(
         if row is not None and row.num and row.num not in shown:
             shown[row.num] = row
     if not shown:
-        return _refuse("no_articles", question, as_of, [])
+        return _refuse("no_articles", question, as_of, [], rewritten=rewritten)
 
     context = "\n\n".join(
         format_article(num, row.valid_from, row.valid_to, row.text, row.nota, row.hierarchy)
@@ -234,11 +259,11 @@ def ask(
     result = interpret(raw, numbers)
     if result is None:
         logger.warning("answer model returned unusable output: %.200s", raw)
-        return _refuse("invalid_output", question, as_of, numbers)
+        return _refuse("invalid_output", question, as_of, numbers, rewritten=rewritten)
     if result.refusal:
-        return _refuse("model_refused", question, as_of, numbers, result.invalid)
+        return _refuse("model_refused", question, as_of, numbers, result.invalid, rewritten)
     if not result.answer or not result.citations:
-        return _refuse("no_valid_citation", question, as_of, numbers, result.invalid)
+        return _refuse("no_valid_citation", question, as_of, numbers, result.invalid, rewritten)
 
     sources = [
         Source(
@@ -260,6 +285,7 @@ def ask(
         sources=sources,
         retrieved=numbers,
         invalid_citations=result.invalid,
+        rewritten=rewritten,
     )
 
 
@@ -275,7 +301,9 @@ class Assistant:
         *,
         k: int = DEFAULT_TOP_K,
         min_relevance: float = 0.0,
+        rewriter: QueryRewriter | None = None,
     ) -> None:
+        self._rewriter = rewriter
         self._engine = engine
         self._embedder = embedder
         self._reranker = reranker
@@ -293,6 +321,7 @@ class Assistant:
             as_of,
             k=self._k,
             min_relevance=self._min_relevance,
+            rewriter=self._rewriter,
         )
 
 
@@ -308,6 +337,7 @@ def build_assistant() -> Assistant:
     settings = get_settings()
     if not settings.generator_model:
         raise ApiError("GENERATOR_MODEL is not set in .env (see .env.example).")
+    rewriter = build_rewriter(settings)
     return Assistant(
         get_engine(),
         MistralEmbedder(settings.mistral_api_key),
@@ -331,6 +361,25 @@ def build_assistant() -> Assistant:
         ),
         k=settings.answer_top_k,
         min_relevance=settings.min_relevance,
+        rewriter=rewriter,
+    )
+
+
+def build_rewriter(settings: Settings) -> QueryRewriter | None:
+    """The query rewriter when REWRITE_MODEL is set, else None (feature off)."""
+    if not settings.rewrite_model:
+        return None
+    from lexrh.rag.generate import OpenAICompatibleGenerator
+    from lexrh.rag.rewrite import LLMQueryRewriter
+
+    return LLMQueryRewriter(
+        OpenAICompatibleGenerator(
+            settings.generator_base_url,
+            settings.rewrite_model,
+            api_key=settings.generator_api_key,
+            max_tokens=150,
+            max_attempts=2,
+        )
     )
 
 
@@ -361,6 +410,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         for source in result.sources:
             until = source.valid_to or "today"
             print(f"  {source.num}  (valid {source.valid_from} -> {until})")
+    if result.rewritten:
+        print(f"\nextra search query: {result.rewritten}")
     print(f"\narticles shown to the model: {', '.join(result.retrieved) or '-'}")
     print(f"total time: {time.perf_counter() - started:.1f}s (includes loading the reranker)")
     return 0

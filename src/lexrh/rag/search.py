@@ -164,8 +164,12 @@ def search(
     candidates: int = CANDIDATES,
     reranker: Reranker | None = None,
     rerank_pool: int = RERANK_POOL,
+    extra_queries: Sequence[str] = (),
 ) -> list[SearchHit]:
     """Return the top ``k`` articles for ``question``, as in force on ``as_of``.
+
+    ``extra_queries`` (for example a rewrite of the question in legal wording) are searched
+    too and fused with the original. The reranker always judges the ORIGINAL question.
 
     With a ``reranker``, the best ``rerank_pool`` articles of the fusion are reordered by it and
     the top ``k`` of that order are returned.
@@ -174,24 +178,36 @@ def search(
     if not question:
         return []
 
-    query_vector = embedder.embed([question]).vectors[0]
+    queries = [question]
+    for extra in extra_queries:
+        extra = extra.strip()
+        if extra and extra not in queries:
+            queries.append(extra)
+    vectors = embedder.embed(queries).vectors
     params: dict[str, Any] = {"text_id": text_id, "as_of": as_of, "n": candidates}
 
     with Session(engine) as session:
         _set_search_parameters(session)
-        vector_ids = list(
-            session.execute(
-                text(VECTOR_SQL), {**params, "qvec": _vector_literal(query_vector)}
-            ).scalars()
-        )
-        tsquery = keyword_query(question)
-        keyword_ids = (
-            list(session.execute(text(KEYWORD_SQL), {**params, "tsq": tsquery}).scalars())
-            if tsquery
-            else []
-        )
+        rankings: list[list[uuid.UUID]] = []
+        vector_ids: list[uuid.UUID] = []
+        keyword_ids: list[uuid.UUID] = []
+        for position, (query, vector) in enumerate(zip(queries, vectors, strict=True)):
+            by_vector = list(
+                session.execute(
+                    text(VECTOR_SQL), {**params, "qvec": _vector_literal(vector)}
+                ).scalars()
+            )
+            tsquery = keyword_query(query)
+            by_keyword = (
+                list(session.execute(text(KEYWORD_SQL), {**params, "tsq": tsquery}).scalars())
+                if tsquery
+                else []
+            )
+            rankings += [by_vector, by_keyword]
+            if position == 0:  # ranks shown in reports describe the original question
+                vector_ids, keyword_ids = by_vector, by_keyword
 
-        fused = reciprocal_rank_fusion([vector_ids, keyword_ids])
+        fused = reciprocal_rank_fusion(rankings)
         if not fused:
             return []
         rows = {

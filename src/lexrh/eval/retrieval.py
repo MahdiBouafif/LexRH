@@ -26,6 +26,7 @@ from pathlib import Path
 
 from lexrh.config import get_settings
 from lexrh.db.session import get_engine
+from lexrh.eval.facts import Requirement, parse_forbidden, parse_requirements
 from lexrh.rag.embeddings import MistralEmbedder
 from lexrh.rag.rerank import build_reranker
 from lexrh.rag.search import DEFAULT_TOP_K, SearchHit, search
@@ -41,6 +42,9 @@ class Case:
     expected: tuple[str, ...]  # article numbers, e.g. ("L1234-1",)
     verified: bool = False  # True once the expected articles were checked on Legifrance
     note: str = ""
+    must_contain: tuple[Requirement, ...] = ()  # wording the answer must contain (see facts.py)
+    must_not_contain: tuple[str, ...] = ()  # wording the answer must not contain
+    manual_review: bool = False  # substring checks cannot judge this answer: read it
 
 
 @dataclass(frozen=True)
@@ -100,6 +104,9 @@ def load_cases(path: Path) -> list[Case]:
                     expected=tuple(raw["expected"]),
                     verified=bool(raw.get("verified", False)),
                     note=raw.get("note", ""),
+                    must_contain=parse_requirements(raw.get("must_contain")),
+                    must_not_contain=parse_forbidden(raw.get("must_not_contain")),
+                    manual_review=bool(raw.get("manual_review", False)),
                 )
             )
         except (KeyError, ValueError, json.JSONDecodeError) as exc:
@@ -176,7 +183,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--pause",
         type=float,
         default=None,
-        help="seconds between questions (default 0)",
+        help="seconds between questions (default 0, or 31 with --rewrite)",
+    )
+    parser.add_argument(
+        "--rewrite", action="store_true", help="also search a rewritten query (needs REWRITE_MODEL)"
     )
     args = parser.parse_args(argv)
 
@@ -198,18 +208,37 @@ def main(argv: Sequence[str] | None = None) -> int:
         else None
     )
 
+    rewriter = None
+    if args.rewrite:
+        from lexrh.rag.answer import build_rewriter
+
+        rewriter = build_rewriter(settings)
+        if rewriter is None:
+            print("REWRITE_MODEL is not set in .env", file=sys.stderr)
+            return 1
+
     def run(question: str, as_of: date, k: int) -> Sequence[SearchHit]:
-        return search(engine, embedder, question, as_of, k=k, reranker=reranker)
+        rewritten = rewriter.rewrite(question, as_of) if rewriter else None
+        return search(
+            engine,
+            embedder,
+            question,
+            as_of,
+            k=k,
+            reranker=reranker,
+            extra_queries=[rewritten] if rewritten else [],
+        )
 
     detail = settings.local_rerank_model if backend == "local" else settings.rerank_model
     mode = f"hybrid + rerank ({backend}: {detail})" if reranker else "hybrid"
-    print(f"mode: {mode}")
+    print(f"mode: {mode}{' + query rewriting' if rewriter else ''}")
 
     def show(done: int, total: int, result: CaseResult) -> None:
         rank = f"rank {result.first_rank}" if result.first_rank else "missed"
         print(f"[{done}/{total}] {result.case.id}: {rank}", file=sys.stderr, flush=True)
 
-    pause = args.pause if args.pause is not None else 0.0
+    # The rewriting model allows about 2 requests per minute: one call per question.
+    pause = args.pause if args.pause is not None else (31.0 if rewriter else 0.0)
     print(format_report(evaluate(cases, run, args.k, pause=pause, progress=show)))
     fallbacks = getattr(reranker, "fallbacks", 0)
     if fallbacks:

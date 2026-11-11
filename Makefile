@@ -67,3 +67,7 @@ eval-answers: ## End-to-end /ask evaluation (needs the generator settings in .en
 .PHONY: doctor
 doctor: ## Quick setup check (settings, database, APIs, one real question)
 	uv run python -m lexrh.doctor
+
+.PHONY: diagnose
+diagnose: ## Where do expected articles land before reranking? (ids: make diagnose IDS="v2-homologation ...")
+	uv run python -m lexrh.eval.diagnose evals/retrieval_questions_v2.jsonl $(if $(IDS),--only $(IDS),)
