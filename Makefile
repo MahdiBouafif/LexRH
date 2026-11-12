@@ -75,3 +75,15 @@ diagnose: ## Where do expected articles land before reranking? (ids: make diagno
 .PHONY: graph
 graph: ## Print the /ask LangGraph pipeline as a Mermaid diagram (docs/ask-graph.md)
 	uv run python -m lexrh.rag.pipeline
+
+.PHONY: mcp
+mcp: ## Run the MCP server over stdio (search_law, compute_notice, compute_severance)
+	uv run python -m lexrh.mcp_server.server
+
+.PHONY: agent
+agent: ## Run the case agent: make agent CASE=case-001 (add STDIO=1 to call the MCP server over stdio)
+	uv run python -m lexrh.agent.graph $(or $(CASE),case-001) $(if $(STDIO),--stdio,)
+
+.PHONY: ui
+ui: ## Open the demo UI (ask a question, run a case, approve)
+	uv run streamlit run src/lexrh/ui/app.py

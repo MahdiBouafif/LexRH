@@ -16,11 +16,15 @@ dependencies = [
     "defusedxml>=0.7.1",
     "httpx>=0.28.1",
     "langgraph>=1.2.20",
+    "mcp>=2.3.0",
 ]
 
 [project.optional-dependencies]
 # Local reranker (downloads PyTorch and a ~2 GB model). Not needed for CI or a basic install.
 local-rerank = ["sentence-transformers>=3.0"]
+ui = [
+    "streamlit>=1.67.0",
+]
 
 [dependency-groups]
 dev = [
@@ -57,7 +61,7 @@ plugins = ["pydantic.mypy"]
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*", "testcontainers.*", "alembic.*", "defusedxml.*", "sentence_transformers.*"]
+module = ["pgvector.*", "testcontainers.*", "alembic.*", "defusedxml.*", "sentence_transformers.*", "streamlit.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

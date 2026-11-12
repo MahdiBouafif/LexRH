@@ -28,7 +28,40 @@ services:
         condition: service_healthy
     command: sh -c "alembic upgrade head && uvicorn lexrh.api.main:app --host 0.0.0.0 --port 8000"
 
+  ui:
+    build:
+      context: .
+      args:
+        EXTRAS: "--extra ui --extra local-rerank"
+    environment:
+      DATABASE_URL: postgresql+psycopg://lexrh:${POSTGRES_PASSWORD:-lexrh}@postgres:5432/lexrh
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      GENERATOR_BASE_URL: ${GENERATOR_BASE_URL:-https://api.mistral.ai/v1}
+      GENERATOR_API_KEY: ${GENERATOR_API_KEY:-}
+      GENERATOR_MODEL: ${GENERATOR_MODEL:-ministral-14b-latest}
+      REWRITE_MODEL: ${REWRITE_MODEL:-}
+      ANSWER_TOP_K: ${ANSWER_TOP_K:-8}
+      RERANK_BACKEND: local
+      HF_HOME: /app/hf-cache
+    ports:
+      - "8501:8501"
+    volumes:
+      - hfcache:/app/hf-cache
+      - uidata:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: streamlit run src/lexrh/ui/app.py --server.port=8501 --server.address=0.0.0.0
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8501/_stcore/health').status == 200 else 1)"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 120s
+
 volumes:
   pgdata:
+  hfcache:
+  uidata:
 
 # Langfuse is added in week 4 (observability); see docs/SCOPE.md.
